@@ -1,10 +1,20 @@
 .PHONY:
 
-run-prod:
+prod-start:
 	FLASK_APP=peer flask run
 
-run-dev:
-	PYTHONDONTWRITEBYTECODE=1 FLASK_APP=peer FLASK_ENV=development flask run
+dev-start:
+	./dev-start.sh
+
+dev-stop:
+	./dev-stop.sh
+
+e2e-test:
+	./test/e2e/test.sh
+
+ci: dev-start
+	sleep 2
+	make e2e-test
 
 clean:
 	rm -rf __pycache__
