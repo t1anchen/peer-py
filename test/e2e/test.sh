@@ -2,6 +2,5 @@
 
 CURDIR=$(dirname "$0")
 
-$CURDIR/01-list_res.sh
-$CURDIR/02-terminate.sh
+$CURDIR/../../venv/bin/python $CURDIR/testci.py
 $CURDIR/../../dev-stop.sh
