@@ -8,6 +8,7 @@ from random import randint
 from .resource import *
 from flask import g
 from flask_caching import Cache
+from .ssh import get_conn, disconn
 
 app = Flask(__name__)
 app.config.from_mapping({
@@ -76,7 +77,8 @@ def cpu_task(timeout=30):
 @app.route("/resource/scale/<int:n_ins>")
 def resource_scale(n_ins):
     start_time = time()
-    new_instances = instance_create(n_ins)
+    dryrun = False
+    new_instances = instance_create(n_ins, dryrun)
     end_time = time()
     with app.app_context():
         saved_instances = cache.get('instances')
@@ -94,7 +96,7 @@ def resource_scale(n_ins):
     }
 
 
-@app.route("/resource/<ins_id>")
+@app.route("/resource/<ins_id>/public_ip")
 def resource_public_ip(ins_id):
     start_time = time()
     ret = instance_public_ip(ins_id)
@@ -114,15 +116,14 @@ def resource_public_ip(ins_id):
 
 @app.route("/resource")
 def resource_all():
+    saved_instances = cache.get('instances')
+    if saved_instances is None:
+        saved_instances = instance_desc()
+        cache.set('instances', saved_instances)
     return {
         "name": "resources",
-        "result": cache.get('instances')
+        "result": saved_instances
     }
-
-
-@app.route("/g")
-def g_list():
-    return dict(g)
 
 
 @app.route("/resource/<ins_id>", methods=['DELETE'])
@@ -139,6 +140,27 @@ def resource_terminate(ins_id):
         "name": "resource terminate",
         "elapsed": end_time - start_time,
         "result": ret
+    }
+
+
+@app.route("/resource/<ins_id>/cpu")
+def resource_cpu(ins_id):
+    hostname = 'localhost'
+    start_time = time()
+    with app.app_context():
+        saved_instances = cache.get('instances')
+        if saved_instances is not None:
+            hostname = saved_instances[ins_id]['public_ip']
+    conn = get_conn(hostname)
+    _, stdout, stderr = conn.exec_command('cat /proc/stat | grep cpu')
+    stdout_str = stdout.read().decode()
+    stderr_str = stderr.read().decode()
+    disconn(conn)
+    end_time = time()
+    return {
+        "name": "resource cpu",
+        "result": stdout_str,
+        "error": stderr_str
     }
 
 
