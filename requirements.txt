@@ -1,4 +1,5 @@
 flask
+Flask-Caching
 boto3
 scikit-learn
 paramiko

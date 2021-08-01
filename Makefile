@@ -13,7 +13,7 @@ e2e-test:
 	./test/e2e/test.sh
 
 ci: dev-start
-	sleep 2
+	sleep 5
 	make e2e-test
 
 clean:
