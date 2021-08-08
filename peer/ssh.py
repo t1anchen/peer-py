@@ -36,7 +36,15 @@ def get_conn(ip_addr, user="ubuntu"):
     key = paramiko.RSAKey.from_private_key(StringIO(SSH_KEY))
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(hostname=ip_addr, username=user, pkey=key)
+    client.connect(
+        hostname=ip_addr,
+        username=user,
+        pkey=key,
+        timeout=60,
+        auth_timeout=60,
+        allow_agent=False,
+        look_for_keys=False,
+    )
     return client
 
 

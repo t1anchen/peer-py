@@ -14,6 +14,7 @@ e2e-test:
 
 ci: dev-start
 	sleep 5
+	rm -vf client.log
 	make e2e-test
 
 clean:

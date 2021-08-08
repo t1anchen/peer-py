@@ -1,6 +1,5 @@
 from flask import Flask, request
 from flask import jsonify
-from .learn import dummy
 import platform
 from time import time, sleep
 import subprocess
@@ -10,8 +9,9 @@ from flask import g
 from flask_caching import Cache
 from .ssh import get_conn, disconn
 from datetime import datetime
-from .learn import train, configure, score, overview
 import numpy as np
+from flask.logging import default_handler
+import logging
 
 app = Flask(__name__)
 app.config.from_mapping(
@@ -20,6 +20,12 @@ app.config.from_mapping(
         "CACHE_TYPE": "SimpleCache",  # Flask-Caching related configs
         "CACHE_DEFAULT_TIMEOUT": 300,
     }
+)
+
+default_handler.setFormatter(
+    logging.Formatter(
+        "%(asctime)s [%(levelname)s] [server_side:%(module)s:%(funcName)s:L%(lineno)d] %(message)s"
+    )
 )
 cache = Cache(app)
 
@@ -171,7 +177,9 @@ def resource_cpu(ins_id):
     result = []
     for i in range(rounds):
         sleep(round_interval_nsecs)
-        cpu_usage = _resource_cpu(ins_id, sample_interval_nsecs)["result"]
+        cpu_usage = _resource_cpu(ins_id, sample_interval_nsecs, (i, rounds))[
+            "result"
+        ]
         result.append(cpu_usage)
     ut_test["result"] = result
 
@@ -181,7 +189,7 @@ def resource_cpu(ins_id):
     return {"name": "resource cpu sampling", "result": ut_test}
 
 
-def _resource_cpu(ins_id, interval_nsecs):
+def _resource_cpu(ins_id, interval_nsecs, progress):
     def cpu_sample(conn):
         _, stdout, stderr = conn.exec_command("cat /proc/stat | grep cpu")
         stdout_str = stdout.read().decode()
@@ -192,6 +200,7 @@ def _resource_cpu(ins_id, interval_nsecs):
         idle_time = int(time_tokens[3])
         return cpu_total_time, idle_time
 
+    current_round, total_rounds = progress
     hostname = "localhost"
     start_time = time()
     with app.app_context():
@@ -213,25 +222,18 @@ def _resource_cpu(ins_id, interval_nsecs):
     disconn(conn)
     end_time = time()
     app.logger.info(
-        f"instance {ins_id} cpu ut {cpu_usage}% sample by {interval_nsecs} secs"
+        f"[{current_round+1}/{total_rounds}] instance {ins_id} cpu ut {cpu_usage}% sample by {interval_nsecs} secs"
     )
     return {"name": "resource cpu", "result": cpu_usage}
 
 
 @app.route("/cache")
 def cache_list():
+    resource_all()
     ret = {}
     ret["instances"] = cache.get("instances")
-    if ret["instances"] is not None:
-        for ins_id in ret["instances"].keys():
-            ret[ins_id] = cache.get(ins_id)
-    # ret['learn'] = {}
-    # if ret['instances'] is not None:
-    #     for ins_id in ret['instances'].keys():
-    #         ret['learn'][ins_id] = overview(cache, ins_id)
-    # https://stackoverflow.com/questions/26646362/numpy-array-is-not-json-serializable
-    # np array does not support json serialization
-    # ret['learn'] = str(cache.get('learn'))
+    for ins_id in ret["instances"].keys():
+        ret[ins_id] = cache.get(ins_id)
     return {"name": "cache list", "result": ret}
 
 
@@ -267,24 +269,3 @@ def pre_processing():
             for ut in ins["cpu_ut"]:
                 configure(cache, ins_id, ut)
     return {"name": "pre processing"}
-
-
-@app.route("/train")
-def learn():
-    saved_instances = cache.get("instances")
-    model = "linear"
-    if saved_instances is not None:
-        active_instances = [k for k in saved_instances.keys()]
-        for ins_id in active_instances:
-            train(cache, ins_id, model)
-    return {"name": "dummy learn by scikit-learn", "result": str(model)}
-
-
-@app.route("/score")
-def evaluate():
-    saved_instances = cache.get("instances")
-    if saved_instances is not None:
-        active_instances = [k for k in saved_instances.keys()]
-        for ins_id in active_instances:
-            model_score = score(cache, ins_id)
-    return {"name": "dummy learn by scikit-learn", "result": str(model_score)}

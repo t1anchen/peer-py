@@ -38,7 +38,7 @@ def instance_desc():
     for reserv in reservations:
         for ins in reserv["Instances"]:
             ins_id = ins["InstanceId"]
-            print(f"[DEBUG] instance_desc:ins = {ins_id}")
+            # print(f"[DEBUG] instance_desc:ins = {ins_id}")
             ret[ins_id] = {
                 "state": "running",
                 "public_ip": ins["PublicIpAddress"],
