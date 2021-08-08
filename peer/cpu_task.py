@@ -8,9 +8,9 @@ def prime_factors(n):
         n = n / 2
 
     # n became odd
-    for i in range(3, int(math.sqrt(n))+1, 2):
+    for i in range(3, int(math.sqrt(n)) + 1, 2):
 
-        while (n % i == 0):
+        while n % i == 0:
             ans.append(i)
             n = n / i
 

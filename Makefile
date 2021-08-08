@@ -10,7 +10,7 @@ dev-stop:
 	./dev-stop.sh
 
 e2e-test:
-	./test/e2e/test.sh
+	./client/e2e/test.sh
 
 ci: dev-start
 	sleep 5

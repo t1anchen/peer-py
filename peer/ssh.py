@@ -2,7 +2,7 @@ import paramiko
 import os
 from io import StringIO
 
-SSH_KEY = '''-----BEGIN RSA PRIVATE KEY-----
+SSH_KEY = """-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEA0gFNsJhY8+Cb0x+j7o5eHMUX7ja8qBRvtRShx2nEnWYXKpSZ
 KA8GCBKP461r9z8C/NoPG6ak4RuGL9rZ235VoWf96IhwGMdbsEboHyxMT6MkEX9I
 NdPMofbM/xOhFiM/MGMdTbW6obCTL6HFdQGC1kuMnd0nglTauongCdN5IYZ4uUbc
@@ -29,10 +29,10 @@ WuMxihECgYAVfh6eaPF2zaSQ2SB7I4uKrleOb+HhHLiMU8B2r/9EiWoHwDTH+i+n
 zzsggJce8xOu6aVykBeH87fMY/Sg1kAPu3NHZVHd7TZmAdzE4JB7H2FOOlOpB1Ez
 RbySb5kswlahIvQ0lnSYO32NBJ3+AYoMrZHCOujXxQZCuzGTLnG89g==
 -----END RSA PRIVATE KEY-----
-'''
+"""
 
 
-def get_conn(ip_addr, user='ubuntu'):
+def get_conn(ip_addr, user="ubuntu"):
     key = paramiko.RSAKey.from_private_key(StringIO(SSH_KEY))
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
