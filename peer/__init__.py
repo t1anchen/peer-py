@@ -12,7 +12,6 @@ from .ssh import get_conn, disconn
 from datetime import datetime
 from .learn import train, configure, score, overview
 import numpy as np
-from .fixture import FAKE_CACHE
 
 app = Flask(__name__)
 app.config.from_mapping(
@@ -234,14 +233,6 @@ def cache_list():
     # np array does not support json serialization
     # ret['learn'] = str(cache.get('learn'))
     return {"name": "cache list", "result": ret}
-
-
-@app.route("/fakecache")
-def cache_fake():
-    ret = FAKE_CACHE
-    for k, v in FAKE_CACHE.items():
-        cache.set(k, v)
-    return {"name": "cache fake", "result": ret}
 
 
 @app.route("/resource/<ins_id>/run", methods=["POST"])
