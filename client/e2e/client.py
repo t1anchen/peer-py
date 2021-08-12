@@ -161,7 +161,7 @@ def wait(timeout: int):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--create", type=int, default=0)
-    parser.add_argument("--dry-run", type=bool)
+    parser.add_argument("--dry-run", action='store_true')
     parser.add_argument("--sample-interval-nsecs", type=float, default=0.2)
     parser.add_argument("--round-interval-nsecs", type=int, default=0)
     parser.add_argument("--training-rounds", type=int, default=80)

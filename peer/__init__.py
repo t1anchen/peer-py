@@ -129,15 +129,13 @@ def resource_public_ip(ins_id):
 
 @app.route("/resource")
 def resource_all():
-    saved_instances = cache.get("instances")
-    if saved_instances is None:
+    with app.app_context():
         saved_instances = instance_desc()
         cache.set("instances", saved_instances)
-        # cache.set('active_instances', [k for k in saved_instances.keys()])
-    for ins_id in saved_instances.keys():
-        ins = cache.get(ins_id) or saved_instances[ins_id]
-        ins["state"] = "running"
-        cache.set(ins_id, ins)
+        for ins_id in saved_instances.keys():
+            ins = cache.get(ins_id) or saved_instances[ins_id]
+            ins["state"] = "running"
+            cache.set(ins_id, ins)
     return {"name": "resources", "result": saved_instances}
 
 
@@ -175,13 +173,24 @@ def resource_cpu(ins_id):
         "rounds": rounds,
     }
     result = []
+
+    # Prepare connection
+    hostname = "localhost"
+    if ins is not None:
+        hostname = ins["public_ip"]
+    conn = get_conn(hostname)
+
+    # Shake
     for i in range(rounds):
         sleep(round_interval_nsecs)
-        cpu_usage = _resource_cpu(ins_id, sample_interval_nsecs, (i, rounds))[
+        cpu_usage = _resource_cpu(conn, ins_id, sample_interval_nsecs, (i, rounds))[
             "result"
         ]
         result.append(cpu_usage)
     ut_test["result"] = result
+
+    # Disconn
+    disconn(conn)
 
     cpu_ut.append(ut_test)
     ins["cpu_ut"] = cpu_ut
@@ -189,7 +198,7 @@ def resource_cpu(ins_id):
     return {"name": "resource cpu sampling", "result": ut_test}
 
 
-def _resource_cpu(ins_id, interval_nsecs, progress):
+def _resource_cpu(conn, ins_id, interval_nsecs, progress):
     def cpu_sample(conn):
         _, stdout, stderr = conn.exec_command("cat /proc/stat | grep cpu")
         stdout_str = stdout.read().decode()
@@ -201,16 +210,7 @@ def _resource_cpu(ins_id, interval_nsecs, progress):
         return cpu_total_time, idle_time
 
     current_round, total_rounds = progress
-    hostname = "localhost"
     start_time = time()
-    with app.app_context():
-        # saved_instances = cache.get('instances')
-        # if saved_instances is not None:
-        #     hostname = saved_instances[ins_id]['public_ip']
-        ins = cache.get(ins_id)
-        if ins is not None:
-            hostname = ins["public_ip"]
-    conn = get_conn(hostname)
     total1, idle1 = cpu_sample(conn)
     # app.logger.debug(f"total1 = {total1}, idle1 = {idle1}")
     sleep(interval_nsecs)
@@ -219,7 +219,7 @@ def _resource_cpu(ins_id, interval_nsecs, progress):
     cpu_usage = (
         ((total2 - idle2) - (total1 - idle1)) * 1.0 / (total2 - total1) * 100.0
     )
-    disconn(conn)
+
     end_time = time()
     app.logger.info(
         f"[{current_round+1}/{total_rounds}] instance {ins_id} cpu ut {cpu_usage}% sample by {interval_nsecs} secs"

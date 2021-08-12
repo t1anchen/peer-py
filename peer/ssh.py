@@ -40,8 +40,8 @@ def get_conn(ip_addr, user="ubuntu"):
         hostname=ip_addr,
         username=user,
         pkey=key,
-        timeout=60,
-        auth_timeout=60,
+        timeout=3600,
+        auth_timeout=3600,
         allow_agent=False,
         look_for_keys=False,
     )

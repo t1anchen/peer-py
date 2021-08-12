@@ -14,6 +14,7 @@ import pickle
 import codecs
 import os
 from log import client_logger
+import json
 
 
 def overview(ctx):
@@ -124,5 +125,19 @@ def predict(ctx):
 
 
 def save(ctx):
-    fname = "-".join([ctx["ins_id"], "pred"]) + ".gz"
-    np.savetxt(fname, ctx)
+    def gen_fname(stem):
+        prefix = f"{ctx['ins_id']}"
+        os.makedirs(f"data/{prefix}", exist_ok=True)
+        suffix = f".txt"
+        return f"data/{prefix}/{stem}{suffix}"
+    np.savetxt(gen_fname('X_train'), ctx['X_train'])
+    np.savetxt(gen_fname('y_train'), ctx['y_train'])
+    np.savetxt(gen_fname('y_test'), ctx['y_test'])
+    np.savetxt(gen_fname('X_test'), ctx['X_test'])
+    for model in ctx['models'].keys():
+        for metric in ['y_pred', 'score']:
+            stem = f"{metric}-{model}"
+            y = ctx[metric][model]
+            if len(np.shape(ctx[metric][model])) == 0:
+                y = np.array([y])
+            np.savetxt(gen_fname(stem), y)
