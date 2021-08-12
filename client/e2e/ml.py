@@ -119,4 +119,10 @@ def predict(ctx):
         ctx["score"][model_name] = model_score
         y_pred = np.round(y_pred)
         ctx["y_pred"][model_name] = y_pred
+    save(ctx)
     return ctx
+
+
+def save(ctx):
+    fname = "-".join([ctx["ins_id"], "pred"]) + ".gz"
+    np.savetxt(fname, ctx)
