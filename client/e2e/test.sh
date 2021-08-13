@@ -4,7 +4,10 @@ CURDIR=$(dirname "$0")
 
 PYTHONDONTWRITEBYTECODE=1 \
 $CURDIR/../../venv/bin/python $CURDIR/client.py \
+--dry-run \
 --create 0 \
---training-rounds 80 \
---predicting-rounds 20
-# $CURDIR/../../dev-stop.sh
+--training-rounds 400 \
+--predicting-rounds 100
+
+PYTHONDONTWRITEBYTECODE=1 $CURDIR/../../venv/bin/python $CURDIR/plot.py
+$CURDIR/../../dev-stop.sh

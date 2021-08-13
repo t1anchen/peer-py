@@ -1,4 +1,2 @@
-flask
-Flask-Caching
-boto3
-paramiko
+requests
+scikit-learn

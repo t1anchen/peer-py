@@ -1,0 +1,4 @@
+flask
+Flask-Caching
+boto3
+paramiko

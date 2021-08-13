@@ -7,7 +7,9 @@ from sklearn.linear_model import (
 )
 from sklearn.svm import SVR, SVC
 from sklearn.model_selection import cross_val_score, train_test_split
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler, PolynomialFeatures
 from sklearn.pipeline import make_pipeline
 import pickle
@@ -63,14 +65,19 @@ def configure(ctx, ins_id, opts: dict):
     y = np.array(y)
     # if "y" in ctx:
     #     y = np.hstack((ctx["y"], y))
-    ctx = {"ins_id": ins_id, "X": X, "y": y}
+    ctx["X"] = X
+    ctx["y"] = y
     return ctx
 
 
 def train(ctx):
     # Prepare dataset
-    X_train = ctx["X"]
-    y_train = ctx["y"]
+    if ctx["offline"]:
+        X_train = load_from_local(ctx["ins_id"], "X_train")
+        y_train = load_from_local(ctx["ins_id"], "y_train")
+    else:
+        X_train = ctx["X"]
+        y_train = ctx["y"]
     # X_train, X_test, y_train, y_test = train_test_split(X, y)
     ctx["X_train"] = X_train
     ctx["y_train"] = y_train
@@ -79,14 +86,16 @@ def train(ctx):
 
     # Training with different models
     models = {
-        "linear": LinearRegression(),
-        "svr": SVR(),
-        "logistic": LogisticRegression(),
-        "bayesian": BayesianRidge(),
+        # "linear": LinearRegression(),
+        "svc": SVC(kernel="poly"),
+        "logistic": LogisticRegression(solver="liblinear"),
+        "knn": KNeighborsClassifier(n_neighbors=6),
+        "ann": MLPClassifier(activation="relu", alpha=0.005)
+        # "bayesian": BayesianRidge(),
     }
     ctx["models"] = {}
     for model_name, model in models.items():
-        client_logger.info(f"model {model_name} is training ...")
+        # client_logger.info(f"model {model_name} is training ...")
         model.fit(X_train, y_train)
         ctx["models"][model_name] = pickle.dumps(model)
 
@@ -96,28 +105,50 @@ def train(ctx):
 def cv_score(ctx):
     X_train = ctx["X_train"]
     y_train = ctx["y_train"]
+    ins_id = ctx["ins_id"]
     ctx["cv_score"] = {}
     for model_name, model in ctx["models"].items():
         model = pickle.loads(model)
-        client_logger.info(f"model {model_name} is scoring ...")
         model_score = cross_val_score(model, X_train, y_train)
+        client_logger.info(
+            f"ins {ins_id} model {model_name} cv_score {model_score}"
+        )
         ctx["cv_score"][model_name] = model_score
     return ctx
 
 
 def predict(ctx):
-    X_test = ctx["X_test"]
-    y_test = ctx["y_test"]
+    ins_id = ctx["ins_id"]
+    if ctx["offline"]:
+        X_test = load_from_local(ins_id, "X_test")
+        y_test = load_from_local(ins_id, "y_test")
+    else:
+        X_test = ctx["X_test"]
+        y_test = ctx["y_test"]
     ctx["y_pred"] = {}
     ctx["score"] = {}
+    ctx["roc_auc_score"] = {}
+    ctx["confusion_matrix"] = {}
     for model_name, model in ctx["models"].items():
         model = pickle.loads(model)
-        client_logger.info(f"model {model_name} is predicting ...")
         y_pred = model.predict(X_test)
-        client_logger.info(f"y_pred of model {model_name} is {y_pred}")
         model_score = model.score(X_test, y_test)
-        client_logger.info(f"model {model_name} score is {model_score}")
         ctx["score"][model_name] = model_score
+        try:
+            ras = roc_auc_score(y_test, y_pred)
+        except ValueError:
+            ras = 0
+        try:
+            acc_score = accuracy_score(y_test, y_pred)
+        except ValueError:
+            acc_score = 0
+        ctx["roc_auc_score"][model_name] = ras
+        cm = confusion_matrix(y_test, y_pred)
+        ctx["confusion_matrix"][model_name] = cm
+        ctx["accuracy"][model_name] = acc_score
+        client_logger.info(
+            f"ins {ins_id} model {model_name} score {model_score} accuracy {acc_score} roc_auc_score {ras} confiusion_matrx {cm}"
+        )
         y_pred = np.round(y_pred)
         ctx["y_pred"][model_name] = y_pred
     save(ctx)
@@ -125,19 +156,63 @@ def predict(ctx):
 
 
 def save(ctx):
-    def gen_fname(stem):
+    def gen_fname(stem, suffix=".txt"):
         prefix = f"{ctx['ins_id']}"
         os.makedirs(f"data/{prefix}", exist_ok=True)
-        suffix = f".txt"
         return f"data/{prefix}/{stem}{suffix}"
-    np.savetxt(gen_fname('X_train'), ctx['X_train'])
-    np.savetxt(gen_fname('y_train'), ctx['y_train'])
-    np.savetxt(gen_fname('y_test'), ctx['y_test'])
-    np.savetxt(gen_fname('X_test'), ctx['X_test'])
-    for model in ctx['models'].keys():
-        for metric in ['y_pred', 'score']:
+
+    np.savetxt(gen_fname("X_train"), ctx["X_train"])
+    np.savetxt(gen_fname("y_train"), ctx["y_train"])
+    np.savetxt(gen_fname("y_test"), ctx["y_test"])
+    np.savetxt(gen_fname("X_test"), ctx["X_test"])
+    for model in ctx["models"].keys():
+        np.save(gen_fname(f"model-{model}", ".npy"), ctx["models"][model])
+        for metric in ["y_pred", "score", "roc_auc_score", "confusion_matrix"]:
             stem = f"{metric}-{model}"
             y = ctx[metric][model]
             if len(np.shape(ctx[metric][model])) == 0:
                 y = np.array([y])
             np.savetxt(gen_fname(stem), y)
+
+
+def select_best(ctx):
+    models = [k for k in ctx["models"].keys()]
+    evaluations = []
+    for model in models:
+        evaluations.append(
+            {
+                "ins_id": ctx["ins_id"],
+                "model": model,
+                "score": ctx["score"][model],
+                "roc_auc_score": ctx["roc_auc_score"][model],
+            }
+        )
+        client_logger.info(f"ins_id = {ctx['ins_id']}")
+    for evaluation in evaluations:
+        evaluation["total"] = evaluation["score"] + evaluation["roc_auc_score"]
+    best_score = sorted(evaluations, key=lambda item: item["total"])[-1]
+    return (best_score["model"], best_score["score"])
+
+
+def load_from_local(ins_id: str, selector, prefix=None, suffix=".txt"):
+    if prefix is None:
+        prefix = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..", "..", "data"
+        )
+    instances = []
+    for p in os.listdir(prefix):
+        if os.path.isdir(prefix + p):
+            instances.append(p)
+    if ins_id not in instances:
+        return None
+    path = os.path.join(prefix, ins_id)
+    if type(selector) == str:
+        path = os.path.join(path, selector, suffix)
+        return np.loadtxt(path)
+    elif type(selector) == list:
+        ret = []
+        for token in selector:
+            ret.append(np.loadtxt(os.path.join(path, token, suffix)))
+        return ret
+    else:
+        return None
