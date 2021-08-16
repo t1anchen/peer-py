@@ -7,7 +7,12 @@ from sklearn.linear_model import (
 )
 from sklearn.svm import SVR, SVC
 from sklearn.model_selection import cross_val_score, train_test_split
-from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix
+from sklearn.metrics import (
+    accuracy_score,
+    roc_auc_score,
+    confusion_matrix,
+    classification_report,
+)
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler, PolynomialFeatures
@@ -129,6 +134,9 @@ def predict(ctx):
     ctx["score"] = {}
     ctx["roc_auc_score"] = {}
     ctx["confusion_matrix"] = {}
+    ctx["accuracy"] = {}
+    ctx["clf_report"] = {}
+    ctx["clf_report_str"] = {}
     for model_name, model in ctx["models"].items():
         model = pickle.loads(model)
         y_pred = model.predict(X_test)
@@ -146,8 +154,19 @@ def predict(ctx):
         cm = confusion_matrix(y_test, y_pred)
         ctx["confusion_matrix"][model_name] = cm
         ctx["accuracy"][model_name] = acc_score
+        ctx["clf_report"][model_name] = classification_report(
+            y_test, y_pred, output_dict=True
+        )
+        ctx["clf_report_str"][model_name] = classification_report(
+            y_test, y_pred
+        )
+        client_logger.info(f"ins {ins_id} model {model_name}")
         client_logger.info(
-            f"ins {ins_id} model {model_name} score {model_score} accuracy {acc_score} roc_auc_score {ras} confiusion_matrx {cm}"
+            f"""\tscore {model_score}
+        \taccuracy {acc_score}
+        \troc_auc_score {ras}
+        \tclf_report_str {ctx["clf_report_str"][model_name]}
+        \tconfiusion_matrx {cm}"""
         )
         y_pred = np.round(y_pred)
         ctx["y_pred"][model_name] = y_pred
@@ -167,7 +186,13 @@ def save(ctx):
     np.savetxt(gen_fname("X_test"), ctx["X_test"])
     for model in ctx["models"].keys():
         np.save(gen_fname(f"model-{model}", ".npy"), ctx["models"][model])
-        for metric in ["y_pred", "score", "roc_auc_score", "confusion_matrix"]:
+        for metric in [
+            "y_pred",
+            "score",
+            "roc_auc_score",
+            "confusion_matrix",
+            "accuracy",
+        ]:
             stem = f"{metric}-{model}"
             y = ctx[metric][model]
             if len(np.shape(ctx[metric][model])) == 0:
