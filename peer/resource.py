@@ -1,9 +1,9 @@
 import boto3
 
 
-def instance_create(n_ins: int, dryrun=False):
+def instance_create(n_ins: int, is_dry_run=False):
     n_ins = max(n_ins, 1)
-    if dryrun:
+    if is_dry_run:
         return ["i-03f42e9709f04f213"]
     ec2_client = boto3.client("ec2", region_name="us-east-1")
     result = ec2_client.run_instances(

@@ -19,7 +19,7 @@ def create(opts: dict):
         client_logger.info("Creating new instances")
         res = requests.get(ENDPOINT + f"/resource/scale/{n_create}").json()
         instances = res["result"]
-        client_logger.info(instances)
+        client_logger.debug(instances)
         client_logger.info("Waiting for initializing new instances ...")
         wait(90)
         for instance in instances:
@@ -37,7 +37,7 @@ def list_running(opts: dict):
         for k in res["result"].keys()
         if res["result"][k]["state"] == "running"
     ]
-    client_logger.info(res)
+    client_logger.debug(res)
     return opts
 
 
@@ -145,7 +145,7 @@ def model_predict(opts: dict):
         # best_algo, best_score = [
         #     (k, v)
         #     for k, v in sorted(
-        #         ctx["score"].items(), key=lambda item: abs(np.sum(item[1]) - 1)
+        #         ctx["mean_accuracy_score"].items(), key=lambda item: abs(np.sum(item[1]) - 1)
         #     )
         # ][0]
         best_algo, best_score = select_best(ctx)
@@ -221,7 +221,8 @@ def main():
     end_time = time.time()
     client_logger.info(f"==== total elapsed {end_time - start_time}s ====")
 
-    # opts = terminate_all(opts)
+    # if opts["enable_termination"]:
+    #     opts = terminate_all(opts)
 
 
 main()

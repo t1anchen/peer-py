@@ -86,8 +86,8 @@ def cpu_task(timeout=30):
 @app.route("/resource/scale/<int:n_ins>")
 def resource_scale(n_ins):
     start_time = time()
-    dryrun = False
-    new_instances = instance_create(n_ins, dryrun)
+    is_dry_run = False
+    new_instances = instance_create(n_ins, is_dry_run)
     end_time = time()
     with app.app_context():
         saved_instances = cache.get("instances")

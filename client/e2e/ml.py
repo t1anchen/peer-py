@@ -40,7 +40,7 @@ def overview(ctx):
         "X_test",
         "y_test",
         "cv_score",
-        "score",
+        "mean_accuracy_score",
         "y_pred",
     ]
     client_logger.debug(f"ins_id = {ctx.get('ins_id')}")
@@ -114,7 +114,7 @@ def cv_score(ctx):
     ctx["cv_score"] = {}
     for model_name, model in ctx["models"].items():
         model = pickle.loads(model)
-        model_score = cross_val_score(model, X_train, y_train)
+        model_score = np.mean(cross_val_score(model, X_train, y_train))
         client_logger.info(
             f"ins {ins_id} model {model_name} cv_score {model_score}"
         )
@@ -131,7 +131,7 @@ def predict(ctx):
         X_test = ctx["X_test"]
         y_test = ctx["y_test"]
     ctx["y_pred"] = {}
-    ctx["score"] = {}
+    ctx["mean_accuracy_score"] = {}
     ctx["roc_auc_score"] = {}
     ctx["confusion_matrix"] = {}
     ctx["accuracy"] = {}
@@ -141,7 +141,7 @@ def predict(ctx):
         model = pickle.loads(model)
         y_pred = model.predict(X_test)
         model_score = model.score(X_test, y_test)
-        ctx["score"][model_name] = model_score
+        ctx["mean_accuracy_score"][model_name] = model_score
         try:
             ras = roc_auc_score(y_test, y_pred)
         except ValueError:
@@ -154,19 +154,25 @@ def predict(ctx):
         cm = confusion_matrix(y_test, y_pred)
         ctx["confusion_matrix"][model_name] = cm
         ctx["accuracy"][model_name] = acc_score
-        ctx["clf_report"][model_name] = classification_report(
-            y_test, y_pred, output_dict=True
-        )
-        ctx["clf_report_str"][model_name] = classification_report(
-            y_test, y_pred
-        )
-        client_logger.info(f"ins {ins_id} model {model_name}")
+
+        clf_report = classification_report(y_test, y_pred, output_dict=True)
+        ctx["clf_report"][model_name] = clf_report
+        clf_report_str = classification_report(y_test, y_pred)
+        ctx["clf_report_str"][model_name] = clf_report_str
+
+        mean_accuracy_score_on_train = ctx["mean_accuracy_score"][model_name]
         client_logger.info(
-            f"""\tscore {model_score}
-        \taccuracy {acc_score}
-        \troc_auc_score {ras}
-        \tclf_report_str {ctx["clf_report_str"][model_name]}
-        \tconfiusion_matrx {cm}"""
+            " ".join(
+                [
+                    f"ins {ins_id} model {model_name}",
+                    f"mean_accuracy_score on train {mean_accuracy_score_on_train}",
+                    f"mean_accuracy_score on test {model_score}",
+                    f"accuracy {acc_score}",
+                    f"roc_auc_score {ras}",
+                    f"clf_report {clf_report}",
+                    f"confiusion_matrx {cm}",
+                ]
+            )
         )
         y_pred = np.round(y_pred)
         ctx["y_pred"][model_name] = y_pred
@@ -186,9 +192,12 @@ def save(ctx):
     np.savetxt(gen_fname("X_test"), ctx["X_test"])
     for model in ctx["models"].keys():
         np.save(gen_fname(f"model-{model}", ".npy"), ctx["models"][model])
+        with open(gen_fname(f"clf_report-{model}.json"), "w") as f:
+            json.dump(ctx['clf_report'][model], f, indent=2)
         for metric in [
             "y_pred",
-            "score",
+            "mean_accuracy_score",
+            "cv_score",
             "roc_auc_score",
             "confusion_matrix",
             "accuracy",
@@ -208,15 +217,17 @@ def select_best(ctx):
             {
                 "ins_id": ctx["ins_id"],
                 "model": model,
-                "score": ctx["score"][model],
+                "mean_accuracy_score": ctx["mean_accuracy_score"][model],
                 "roc_auc_score": ctx["roc_auc_score"][model],
             }
         )
         client_logger.info(f"ins_id = {ctx['ins_id']}")
     for evaluation in evaluations:
-        evaluation["total"] = evaluation["score"] + evaluation["roc_auc_score"]
+        evaluation["total"] = (
+            evaluation["mean_accuracy_score"] + evaluation["roc_auc_score"]
+        )
     best_score = sorted(evaluations, key=lambda item: item["total"])[-1]
-    return (best_score["model"], best_score["score"])
+    return (best_score["model"], best_score["mean_accuracy_score"])
 
 
 def load_from_local(ins_id: str, selector, prefix=None, suffix=".txt"):
