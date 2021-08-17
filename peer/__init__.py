@@ -18,7 +18,7 @@ app.config.from_mapping(
     {
         "DEBUG": True,
         "CACHE_TYPE": "SimpleCache",  # Flask-Caching related configs
-        "CACHE_DEFAULT_TIMEOUT": 300,
+        "CACHE_DEFAULT_TIMEOUT": 3600 * 2,
     }
 )
 
@@ -133,7 +133,7 @@ def resource_all():
         saved_instances = instance_desc()
         cache.set("instances", saved_instances)
         for ins_id in saved_instances.keys():
-            ins = cache.get(ins_id) or saved_instances[ins_id]
+            ins = saved_instances[ins_id]
             ins["state"] = "running"
             cache.set(ins_id, ins)
     return {"name": "resources", "result": saved_instances}
@@ -163,6 +163,7 @@ def resource_cpu(ins_id):
     sample_interval_nsecs = req_ctx.get("sample_interval_nsecs", 3)
     round_interval_nsecs = req_ctx.get("round_interval_nsecs", 1)
     rounds = req_ctx.get("rounds", 5)
+    # app.logger.info(cache)
     ins = cache.get(ins_id)
     cpu_ut = ins.get("cpu_ut", [])
 
@@ -183,9 +184,9 @@ def resource_cpu(ins_id):
     # Shake
     for i in range(rounds):
         sleep(round_interval_nsecs)
-        cpu_usage = _resource_cpu(conn, ins_id, sample_interval_nsecs, (i, rounds))[
-            "result"
-        ]
+        cpu_usage = _resource_cpu(
+            conn, ins_id, sample_interval_nsecs, (i, rounds)
+        )["result"]
         result.append(cpu_usage)
     ut_test["result"] = result
 
@@ -229,10 +230,10 @@ def _resource_cpu(conn, ins_id, interval_nsecs, progress):
 
 @app.route("/cache")
 def cache_list():
-    resource_all()
     ret = {}
-    ret["instances"] = cache.get("instances")
-    for ins_id in ret["instances"].keys():
+    saved_instances = cache.get("instances")
+    ret["instances"] = saved_instances
+    for ins_id in saved_instances.keys():
         ret[ins_id] = cache.get(ins_id)
     return {"name": "cache list", "result": ret}
 

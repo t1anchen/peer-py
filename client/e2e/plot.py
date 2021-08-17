@@ -58,6 +58,7 @@ def plotting_roc_curve(ctx):
             plot_roc_curve(clf, X_test, y_test, ax=ax_)
         ctx[ins_id] = ins
         fig.savefig(os.path.join(prefix, f"{ins_id}/roc_curve.pdf"))
+        fig.savefig(os.path.join(prefix, f"{ins_id}/roc_curve.png"))
     return ctx
 
 

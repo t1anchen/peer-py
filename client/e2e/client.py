@@ -49,6 +49,7 @@ def train_sample(opts):
     opts["train_samples"] = {}
     if opts["offline"]:
         return list_cache(opts)
+    # opts = list_cache(opts)
     for instance in active_instances:
         res = requests.post(
             ENDPOINT + f"/resource/{instance}/cpu",
@@ -75,7 +76,7 @@ def list_cache(opts):
     # global client_cache
     res = requests.get(ENDPOINT + "/cache").json()
     client_logger.info(f"cache = {res['result']}")
-    for k, v in res["result"].items():
+    for k, v in res["result"]['instances'].items():
         opts[k] = v
     return opts
 
